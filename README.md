@@ -1,2 +1,2 @@
 # pystack
- A Python Plugin for Paystack
+ A Python wrapper for Paystack
