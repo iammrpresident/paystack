@@ -1,84 +1,118 @@
-import httpx 
-from .pagination import Pagination
-from .http_client import PyStackApiClient
-from .request_builder import RequestBuilder
+import aiohttp
+from .errors import APIError
+from .utils import parse_response
+from .constants import BASE_URL
 
-class TransactionManager:
-    """
-    Manager class for handling transactions in the Paystack API.
-    """
+class PaystackTransactions:
+    def __init__(self, secret_key):
+        self.secret_key = secret_key
+        self.base_url = BASE_URL 
+        self.headers = {
+            'Authorization': f'Bearer {secret_key}',
+            'Content-Type': 'application/json'
+        }
+        
+    async def initialize_transaction(self, email, amount, reference=None, callback_url=None, plan=None, invoice_limit=None, metadata=None, subaccount=None, transaction_charge=None, bearer=None, channels=None):
+        payload = {
+            "email": email,
+            "amount": amount,
+            "reference": reference,
+            "callback_url": callback_url,
+            "plan": plan,
+            "invoice_limit": invoice_limit,
+            "metadata": metadata,
+            "subaccount": subaccount,
+            "transaction_charge": transaction_charge,
+            "bearer": bearer,
+            "channels": channels,
+        }
+        return await self._make_request("POST", "/transaction/initialize", payload)
+    
+    async def verify_transaction(self, reference):
+        return await self._make_request("GET", f"/transaction/verify/{reference}")
+    
+    async def list_transactions(self, per_page=None, page=None, customer=None, status=None, _from=None, to=None, amount=None):
+        params = {
+            "perPage": per_page,
+            "page": page,
+            "customer": customer,
+            "status": status,
+            "from": _from,
+            "to": to,
+            "amount": amount
+        }
+        return await self._make_request("GET", "/transaction", params=params)
+    
+    async def fetch_transaction(self, transaction_id):
+        return await self._make_request("GET", f"/transaction/{transaction_id}")
+    
+    async def charge_authorization(self, reference, authorization_code, amount, plan=None, currency=None, email=None, metadata=None, subaccount=None, transaction_charge=None, bearer=None):
+        payload = {
+            "reference": reference,
+            "authorization_code": authorization_code,
+            "amount": amount,
+            "plan": plan,
+            "currency": currency,
+            "email": email,
+            "metadata": metadata,
+            "subaccount": subaccount,
+            "transaction_charge": transaction_charge,
+            "bearer": bearer
+        }
+        return await self._make_request("POST", "/transaction/charge_authorization", payload)
+    
+    async def view_transaction_timeline(self, id_or_reference):
+        return await self._make_request("GET", f"/transaction/timeline/{id_or_reference}")
+    
+    async def transaction_totals(self, _from=None, to=None): 
+        params = {
+            "from": _from,
+            "to": to
+        }
+        return await self._make_request("GET", "/transaction/totals", params=params)
+    
+    async def export_transactions(self, _from, to, settled, payment_page, customer, currency, settlement, amount, status):
+        params = {
+            "from": _from,
+            "to": to,
+            "settled": settled,
+            "payment_page": payment_page,
+            "customer": customer,
+            "currency": currency,
+            "settlement": settlement,
+            "amount": amount,
+            "status": status
+        }
+        return await self._make_request("GET", "/transaction/export", params=params)
+    
+    async def request_reauthorization(self, reference, authorization_code, amount, currency=None, email=None, metadata=None):
+        payload = {
+            "reference": reference,
+            "authorization_code": authorization_code,
+            "amount": amount,
+            "currency": currency,
+            "email": email,
+            "metadata": metadata
+        }
+        return await self._make_request("POST", "/transaction/request_reauthorization", payload)
+    
+    async def check_authorization(self, authorization_code, amount, email, currency=None):
+        payload = {
+            "authorization_code": authorization_code,
+            "amount": amount,
+            "email": email,
+            "currency": currency
+        }
+        return await self._make_request("POST", "/transaction/check_authorization", payload)
+    
+    async def _make_request(self, method, endpoint, data=None, params=None):
+        url = f"{self.base_url}{endpoint}"
+        async with aiohttp.ClientSession() as session:
+            async with session.request(method=method, url=url, json=data, headers=self.headers, params=params) as response:
+                response_data = await response.json()  # Parse response as JSON
+                if not response_data:
+                    raise APIError("No response received", status_code=response.status)
+                if response.status == 400:
+                    raise APIError(response_data, status_code=response.status)
+                return response_data
 
-    def __init__(self, api_client):
-        """
-        Initialize the TransactionManager with the API client.
-        """
-        self.api_client = api_client
-
-    def initialize_transaction(self, amount, email, currency=None, reference=None, callback_url=None, **kwargs):
-        """
-        Initialize a transaction.
-        """
-        payload = RequestBuilder.build_initialize_transaction_payload(
-            amount, email, currency, reference, callback_url, **kwargs
-        )
-        response = self.api_client.make_request(httpx.post, 'transaction/initialize', data=payload)
-        return response
-
-    def charge_authorization(self, amount, email, authorization_code, reference=None, **kwargs):
-        """
-        Charge an authorization.
-        """
-        payload = RequestBuilder.build_charge_authorization_payload(
-            amount, email, authorization_code, reference, **kwargs
-        )
-        response = self.api_client.make_request(httpx.post, 'transaction/charge_authorization', data=payload)
-        return response
-
-    def verify_transaction(self, reference):
-        """
-        Verify the status of a transaction.
-        """
-        response = self.api_client.make_request(httpx.get, f'transaction/verify/{reference}')
-        return response
-
-    def list_transactions(self, per_page=50, page=1, **kwargs):
-        """
-        List transactions with optional parameters for filtering.
-        """
-        params = {'per_page': per_page, 'page': page, **kwargs}
-        response = self.api_client.make_request(httpx.get, 'transaction', params=params)
-        total = response['meta']['total']
-        page_count = response['meta']['pageCount']
-        return response['data'], Pagination(total, per_page, page, page_count)
-
-    def fetch_transaction(self, transaction_id):
-        """
-        Fetch details of a specific transaction.
-        """
-        response = self.api_client.make_request(httpx.get, f'transaction/{transaction_id}')
-        return response
-
-    def view_transaction_timeline(self, transaction_id):
-        """
-        View the timeline of a transaction.
-        """
-        response = self.api_client.make_request(httpx.get, f'transaction/timeline/{transaction_id}')
-        return response
-
-    def get_transaction_totals(self, per_page=50, page=1, **kwargs):
-        """
-        Get total amount received on your account with optional parameters for filtering.
-        """
-        params = {'per_page': per_page, 'page': page, **kwargs}
-        response = self.api_client.make_request(httpx.get, 'transaction/totals', params=params)
-        total = response['meta']['total']
-        page_count = response['meta']['pageCount']
-        return response['data'], Pagination(total, per_page, page, page_count)
-
-    def export_transactions(self, per_page=50, page=1, **kwargs):
-        """
-        Export a list of transactions with optional parameters for filtering.
-        """
-        params = {'per_page': per_page, 'page': page, **kwargs}
-        response = self.api_client.make_request(httpx.get, 'transaction/export', params=params)
-        return response
