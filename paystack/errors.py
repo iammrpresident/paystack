@@ -14,7 +14,13 @@ class APIError(PaystackError):
         self.response = response
         
     def __str__(self):
-        if self.status_code:
-            return f"APIError: {self.status_code} - {self.response}"
+        if self.status_code == 400:
+            return f"Bad Request: {self.response}"
+        elif self.status_code == 401:
+            return f"Unauthorized: {self.response}"
+        elif self.status_code == 404:
+            return f"Not Found: {self.response}"
+        elif self.status_code == 500:
+            return f"Internal Server Error: {self.response}"
         else:
-            return f"APIError: {self.response}"
+            return f"API Error: {self.response}"
