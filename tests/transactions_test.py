@@ -1,5 +1,6 @@
 import pytest
-from paystack.transactions import PaystackTransactions, APIError
+from paystack.transactions import PaystackTransactions
+from paystack.errors import APIError
 
 TEST_SECRET_KEY = ""
 

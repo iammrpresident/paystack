@@ -1,25 +1,7 @@
-import aiohttp
-from .errors import APIError
-from .constants import BASE_URL
+from .base import PaystackBase
 
-class PaystackTransactions:
+class PaystackTransactions(PaystackBase):
     """Wrapper class for interacting with the Paystack Transactions API."""
-
-    def __init__(self, secret_key, session=None):
-        """Initialize the PaystackTransactions instance.
-        
-        Args:
-            secret_key (str): The Paystack secret key.
-            session (aiohttp.ClientSession, optional): An existing aiohttp ClientSession
-                to reuse for making HTTP requests. If not provided, a new session will be created.
-        """
-        self.secret_key = secret_key
-        self.base_url = BASE_URL 
-        self.headers = {
-            'Authorization': f'Bearer {secret_key}',
-            'Content-Type': 'application/json'
-        }
-        self.session = session or aiohttp.ClientSession()  # Create a session for making requests
         
     async def initialize_transaction(self, email, amount, reference=None, callback_url=None, plan=None, invoice_limit=None, metadata=None, subaccount=None, transaction_charge=None, bearer=None, channels=None):
         """Initialize a new transaction.
@@ -130,13 +112,3 @@ class PaystackTransactions:
             "metadata": metadata
         }
         return await self._make_request("POST", "/transaction/request_reauthorization", payload)
-    
-    async def _make_request(self, method, endpoint, data=None, params=None):
-        url = f"{self.base_url}{endpoint}"
-        async with self.session.request(method=method, url=url, json=data, headers=self.headers, params=params) as response:
-            response_data = await response.json()
-            if not response_data:
-                raise APIError("No response received", status_code=response.status)
-            if response.status == 400:
-                raise APIError(response_data, status_code=response.status)
-            return response_data
