@@ -112,3 +112,14 @@ class PaystackTransactions(PaystackBase):
             "metadata": metadata
         }
         return await self._make_request("POST", "/transaction/request_reauthorization", payload)
+    
+    async def partial_debit(self, authorization_code, currency, amount, email, reference=None, at_least=None):
+        payload = {
+            "authorization_code": authorization_code,
+            "currency": currency,
+            "amount": amount,
+            "email": email,
+            "reference": reference,
+            "at_least": at_least
+        }
+        return await self._make_request("POST", "/transaction/partial_debit", payload)
